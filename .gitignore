@@ -1,0 +1,48 @@
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Model & data files (large binaries)
+*.pth
+*.pt
+*.bin
+subgraph_embeddings_mean.json
+
+# Environment variables
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# pytest / coverage
+.pytest_cache/
+htmlcov/
+.coverage

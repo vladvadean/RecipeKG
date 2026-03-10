@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Recipe Analyzer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Mono:wght@300;400&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0d0f12;
+        --surface: #151820;
+        --surface2: #1c2030;
+        --border: #2a3040;
+        --accent: #e8c97a;
+        --accent2: #7ab8e8;
+        --text: #e2e8f0;
+        --muted: #64748b;
+        --red: #ef4444;
+        --blue: #3b82f6;
+        --purple: #a855f7;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "DM Mono", monospace;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        padding: 2rem;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+        pointer-events: none;
+        z-index: 1000;
+        opacity: 0.4;
+      }
+
+      header {
+        max-width: 1200px;
+        margin: 0 auto 2.5rem;
+        display: flex;
+        align-items: baseline;
+        gap: 1rem;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 1.5rem;
+      }
+
+      header h1 {
+        font-family: "Playfair Display", serif;
+        font-size: 2rem;
+        color: var(--accent);
+        letter-spacing: -0.02em;
+      }
+
+      header span {
+        font-size: 0.75rem;
+        color: var(--muted);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .workspace {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: grid;
+        gap: 1.5rem;
+      }
+
+      /* Panel shared styles */
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .panel-header {
+        padding: 0.75rem 1.25rem;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: var(--surface2);
+      }
+
+      .panel-header h3 {
+        font-family: "Playfair Display", serif;
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: var(--accent);
+      }
+
+      .panel-header .badge {
+        font-size: 0.65rem;
+        color: var(--muted);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .panel-body {
+        padding: 1.25rem;
+      }
+
+      /* Input panel */
+      .input-panel .panel-body {
+        padding: 0;
+      }
+
+      textarea {
+        background: transparent;
+        border: none;
+        color: var(--text);
+        font-family: "DM Mono", monospace;
+        font-size: 0.85rem;
+        padding: 1.25rem;
+        resize: none;
+        height: 180px;
+        width: 100%;
+        outline: none;
+        line-height: 1.6;
+        display: block;
+
+        /* Match recipe-text scrollbar */
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border) var(--surface2);
+      }
+
+      textarea::-webkit-scrollbar {
+        width: 4px;
+      }
+      textarea::-webkit-scrollbar-track {
+        background: var(--surface2);
+      }
+      textarea::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 2px;
+      }
+      textarea::placeholder {
+        color: var(--muted);
+      }
+
+      .btn-row {
+        border-top: 1px solid var(--border);
+        padding: 1rem 1.25rem;
+        display: flex;
+        justify-content: center;
+        background: var(--surface2);
+      }
+
+      button {
+        background: var(--accent);
+        color: #0d0f12;
+        border: none;
+        border-radius: 6px;
+        font-family: "DM Mono", monospace;
+        font-size: 0.8rem;
+        font-weight: 400;
+        letter-spacing: 0.05em;
+        cursor: pointer;
+        padding: 0.75rem 2.5rem;
+        transition:
+          opacity 0.2s,
+          transform 0.1s;
+      }
+
+      button:hover {
+        opacity: 0.85;
+      }
+      button:active {
+        transform: scale(0.98);
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      /* Result panel */
+      .result-name {
+        font-family: "Playfair Display", serif;
+        font-size: 1.6rem;
+        color: var(--accent);
+        margin-bottom: 1rem;
+      }
+
+      .recipe-text {
+        font-size: 0.78rem;
+        color: var(--text);
+        line-height: 1.9;
+        white-space: pre-wrap;
+        max-height: 300px;
+        overflow-y: auto;
+        padding-right: 0.5rem;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border) var(--surface2);
+      }
+
+      .recipe-text::-webkit-scrollbar {
+        width: 4px;
+      }
+      .recipe-text::-webkit-scrollbar-track {
+        background: var(--surface2);
+      }
+      .recipe-text::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 2px;
+      }
+
+      /* Graphs */
+      .graphs-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+      }
+
+      .graph-container {
+        height: 380px;
+        background: var(--bg);
+        border-radius: 4px;
+        position: relative;
+      }
+
+      .legend {
+        display: flex;
+        gap: 1.25rem;
+        padding: 0.75rem 1.25rem;
+        border-top: 1px solid var(--border);
+        font-size: 0.7rem;
+        color: var(--muted);
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+      }
+      .legend-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .overlap-stat {
+        margin-left: auto;
+        font-size: 0.7rem;
+        color: var(--muted);
+      }
+
+      /* Status */
+      .loading {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1.25rem;
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+
+      .spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid var(--border);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        flex-shrink: 0;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .error-msg {
+        padding: 1.25rem;
+        color: var(--red);
+        font-size: 0.8rem;
+        border-left: 2px solid var(--red);
+      }
+
+      #results {
+        display: none;
+      }
+
+      .fade-in {
+        animation: fadeIn 0.4s ease forwards;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Recipe Analyzer</h1>
+      <span>graph-based similarity engine</span>
+    </header>
+
+    <div class="workspace">
+      <!-- Input panel -->
+      <div class="panel input-panel">
+        <div class="panel-header">
+          <h3>Input</h3>
+          <span class="badge">recipe instructions</span>
+        </div>
+        <div class="panel-body">
+          <textarea
+            id="recipeInput"
+            placeholder="Paste recipe instructions here...&#10;&#10;e.g. Preheat oven to 350°F. Mix flour, sugar and butter. Bake for 25 minutes until golden."
+          ></textarea>
+        </div>
+        <div class="btn-row">
+          <button id="analyzeBtn" onclick="analyze()">Analyze →</button>
+        </div>
+      </div>
+
+      <div id="statusBox"></div>
+
+      <div id="results">
+        <!-- Result panel -->
+        <div class="panel fade-in" style="margin-bottom: 1rem">
+          <div class="panel-header">
+            <h3>Top Match</h3>
+            <span class="badge">similarity result</span>
+          </div>
+          <div class="panel-body">
+            <div class="result-name" id="resultName"></div>
+            <div class="recipe-text" id="recipeText"></div>
+          </div>
+        </div>
+
+        <!-- Graphs panel -->
+        <div class="panel fade-in">
+          <div class="panel-header">
+            <h3>Knowledge Graphs</h3>
+            <span class="badge">query · candidate · overlap</span>
+          </div>
+
+          <div class="panel-body" style="padding-bottom: 0">
+            <div class="graphs-grid">
+              <div>
+                <div
+                  style="
+                    font-size: 0.7rem;
+                    color: var(--muted);
+                    margin-bottom: 0.5rem;
+                    letter-spacing: 0.08em;
+                    text-transform: uppercase;
+                  "
+                >
+                  Query Graph
+                </div>
+                <div class="graph-container" id="queryGraph"></div>
+              </div>
+              <div>
+                <div
+                  style="
+                    font-size: 0.7rem;
+                    color: var(--muted);
+                    margin-bottom: 0.5rem;
+                    letter-spacing: 0.08em;
+                    text-transform: uppercase;
+                  "
+                >
+                  Candidate Graph
+                </div>
+                <div class="graph-container" id="candidateGraph"></div>
+              </div>
+              <div>
+                <div
+                  style="
+                    font-size: 0.7rem;
+                    color: var(--muted);
+                    margin-bottom: 0.5rem;
+                    letter-spacing: 0.08em;
+                    text-transform: uppercase;
+                  "
+                >
+                  Overlap Graph
+                </div>
+                <div class="graph-container" id="overlapGraph"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="legend">
+            <div class="legend-item">
+              <div class="legend-dot" style="background: var(--red)"></div>
+              Query only
+            </div>
+            <div class="legend-item">
+              <div class="legend-dot" style="background: var(--blue)"></div>
+              Candidate only
+            </div>
+            <div class="legend-item">
+              <div class="legend-dot" style="background: var(--purple)"></div>
+              Shared
+            </div>
+            <div class="overlap-stat" id="overlapStat"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const VIS_OPTIONS = {
+        nodes: {
+          shape: "dot",
+          size: 12,
+          font: { color: "#e2e8f0", size: 11, face: "DM Mono, monospace" },
+          borderWidth: 1,
+          borderWidthSelected: 2,
+        },
+        edges: {
+          color: { color: "#2a3040", highlight: "#e8c97a" },
+          font: {
+            color: "#64748b",
+            size: 9,
+            face: "DM Mono, monospace",
+            align: "middle",
+          },
+          arrows: { to: { enabled: true, scaleFactor: 0.5 } },
+          smooth: { type: "continuous" },
+          width: 1,
+        },
+        physics: {
+          enabled: true,
+          solver: "forceAtlas2Based",
+          forceAtlas2Based: { gravitationalConstant: -40, springLength: 80 },
+          stabilization: { iterations: 150 },
+        },
+        interaction: { hover: true, zoomView: true, dragView: true },
+      };
+
+      function renderGraph(containerId, graphData, defaultColor = "#e8c97a") {
+        const container = document.getElementById(containerId);
+        container.innerHTML = "";
+        const nodes = new vis.DataSet(
+          graphData.nodes.map((n) => ({
+            id: n.id,
+            label:
+              n.label.length > 20 ? n.label.substring(0, 20) + "…" : n.label,
+            title: n.label,
+            color: {
+              background: n.color || defaultColor,
+              border: (n.color || defaultColor) + "aa",
+              highlight: { background: "#e8c97a", border: "#e8c97a" },
+            },
+          })),
+        );
+        const edges = new vis.DataSet(
+          graphData.edges.map((e) => ({
+            id: e.id,
+            from: e.from,
+            to: e.to,
+            label: e.label || "",
+          })),
+        );
+        new vis.Network(container, { nodes, edges }, VIS_OPTIONS);
+      }
+
+      async function analyze() {
+        const input = document.getElementById("recipeInput").value.trim();
+        const btn = document.getElementById("analyzeBtn");
+        const statusBox = document.getElementById("statusBox");
+        const results = document.getElementById("results");
+
+        if (!input) {
+          statusBox.innerHTML =
+            '<div class="error-msg">Please enter recipe instructions.</div>';
+          return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = "Analyzing...";
+        results.style.display = "none";
+        statusBox.innerHTML =
+          '<div class="loading"><div class="spinner"></div>Running graph similarity analysis — this may take a moment...</div>';
+
+        try {
+          const res = await fetch("http://127.0.0.1:8000/echo", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: input }),
+          });
+
+          const data = await res.json();
+
+          if (data.error) {
+            statusBox.innerHTML = `<div class="error-msg">${data.error}</div>`;
+            return;
+          }
+
+          statusBox.innerHTML = "";
+          results.style.display = "block";
+
+          document.getElementById("resultName").textContent =
+            data.top_candidate;
+          document.getElementById("recipeText").textContent = data.recipe;
+
+          renderGraph("queryGraph", data.query_graph, "#e8c97a");
+          renderGraph("candidateGraph", data.candidate_graph, "#7ab8e8");
+          renderGraph("overlapGraph", data.overlap_graph);
+
+          const s = data.overlap_stats;
+          document.getElementById("overlapStat").textContent =
+            `Overlapping nodes: ${s.common} / ${s.total} (${s.percent}%)`;
+        } catch (err) {
+          statusBox.innerHTML =
+            '<div class="error-msg">Could not reach the server. Is FastAPI running?</div>';
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "Analyze →";
+        }
+      }
+
+      document
+        .getElementById("recipeInput")
+        .addEventListener("keydown", (e) => {
+          if (e.key === "Enter" && e.ctrlKey) analyze();
+        });
+    </script>
+  </body>
+</html>
